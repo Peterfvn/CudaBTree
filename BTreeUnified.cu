@@ -6,7 +6,6 @@
 #include <cuda_runtime.h>
 #include <cuda_profiler_api.h>
 
-#include <stdio.h>
 #include <stdlib.h>
 #include <math.h>
 
@@ -209,7 +208,9 @@ struct sNode {
 };
 
 void push(struct sNode** top, struct BTreeNode* t) {
-    struct sNode* newNode = (struct sNode*)malloc(sizeof(struct sNode));
+    // struct sNode* newNode = (struct sNode*)malloc(sizeof(struct sNode));
+    struct sNode* newNode;
+    cudaMallocManaged(&newNode, sizeof(struct sNode));
 
     newNode->t = t;
     newNode->next = *top;
@@ -232,27 +233,86 @@ bool isEmpty(struct sNode* top) {
     return (top==NULL) ? 1 : 0;
 }
 
-// WIP
 void iterativeInOrderTraversal(BTreeNode* root, int depth) {
     int count = 0;
     struct BTreeNode* current = root;
     struct sNode* stack = NULL;
+    push(&stack, current);
     bool done = 0;
 
-    while(!done && count < depth) {
-        if(current != NULL) {
-            push(&stack, current);
-            current = current->link[0];
+    while(!isEmpty(stack) && count < depth) {
+        BTreeNode* node = pop(&stack);
+        for(int i = 1; i <= node->count; i++) {
+            printf("%d ", node->val[i]);
+        }
+        if(node != NULL) {
+            for(int i = 0; i <= MAX; i++) {
+                if(node->link[i]) {
+                    push(&stack, node->link[i]);
+                }
+            }
         }
     }
-    
+}
 
+__device__ void pushGPU(struct sNode** top_ref, struct BTreeNode* t) {
+    struct sNode* newNode;
+    newNode = (sNode*)malloc(sizeof(struct sNode));
+
+    newNode->t = t;
+    newNode->next = *top_ref;
+    *top_ref = newNode;
+}
+
+__device__ BTreeNode* popGPU(struct sNode** top_ref) {
+    struct BTreeNode* res;
+    struct sNode* top;
+
+    top = *top_ref;
+    res = top->t;
+    *top_ref = top->next;
+    free(top);
+    return res;
+}
+
+__device__ bool isEmptyGPU(struct sNode* top) {
+    return (top == NULL) ? 1 : 0;
+}
+
+__device__ void GPU_DFS(BTreeNode* root, int tid) {
+    struct BTreeNode* current = root;
+    struct sNode* stack = NULL;
+    pushGPU(&stack, current);
+    int depth = 0;
+
+    while(!isEmptyGPU(stack) && depth <= tid) {
+
+        current = popGPU(&stack);
+        for(int i = 1; i<= current->count; i++) {
+            printf("%d ", current->val[i]);
+        }
+        printf("\n");
+
+        if(current != NULL) {
+            for(int i = 0; i <= MAX; i++) {
+                if(current->link[i]) {
+                    pushGPU(&stack, current->link[i]);
+                }
+            }
+        }
+        depth++;
+    }
+}
+
+__global__ void printTree(BTreeNode* root) {
+    int tid = threadIdx.x;
+    GPU_DFS(root, tid);
 }
 
 __global__ void bruteForceTree(BTreeNode* root) {
     int tid = threadIdx.x;
-    printf("%d ", root->val[1]);
-    printf("\n%d, %d | %d", root->link[0]->val[1], root->link[0]->val[2], root->link[1]->val[1]);
+    printf("%d, %d ", root->val[1], root->val[2]);
+    printf("\n%d, %d | %d, %d | %d\n", root->link[0]->val[1], root->link[0]->val[2], root->link[1]->val[1], root->link[1]->val[2], root->link[2]->val[1]);
 }
 
 int main() {
@@ -262,9 +322,9 @@ int main() {
   insert(9);
   insert(10);
   insert(11);
-//   insert(15);
-//   insert(16);
-//   insert(17);
+  insert(15);
+  insert(16);
+  insert(17);
 //   insert(18);
 //   insert(20);
 //   insert(23);
@@ -272,8 +332,17 @@ int main() {
 //   insert(25);
 //   insert(26);
 
-  bruteForceTree<<<1, 1>>>(root);
-  cudaDeviceSynchronize();
+    // iterativeInOrderTraversal(root, 5);
+    // printf("\n");
+    printTree<<<1, 2>>>(root);
+    cudaDeviceSynchronize();
+    cudaError_t err = cudaGetLastError();
+    if(err != cudaSuccess) {
+        printf("CUDA Error: %s\n", cudaGetErrorString(err));
+    }
+
+//   bruteForceTree<<<1, 1>>>(root);
+//   cudaDeviceSynchronize();
 
 
 }
