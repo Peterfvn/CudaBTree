@@ -159,7 +159,7 @@ int height = 5;
 int sizeOfArr = (pow((MAX + 1), height+1)-1)/((MAX+1)-1);
 struct BTreeNode** treeArray = (struct BTreeNode**)malloc(sizeof(struct BTreeNode*) * (sizeOfArr));
 
-// Create array for tree
+// Create array for tree. Does not work currently
 void makeArray(struct BTreeNode* myNode) {
     int front = 0, rear = 0, index = 0;
     struct BTreeNode** queue = (struct BTreeNode**) malloc(sizeof(struct BTreeNode*) * 1000);
@@ -200,6 +200,53 @@ void levelOrderTraversal(struct BTreeNode* myNode) {
             queue[rear++] = current->link[i];
         }
     }
+}
+
+// Stack related functions for non-recursive traversal
+struct sNode {
+    struct BTreeNode* t;
+    struct sNode* next;
+};
+
+void push(struct sNode** top, struct BTreeNode* t) {
+    struct sNode* newNode = (struct sNode*)malloc(sizeof(struct sNode));
+
+    newNode->t = t;
+    newNode->next = *top;
+    *top = newNode;
+}
+
+struct BTreeNode* pop(struct sNode** top_ref) {
+    struct BTreeNode* res;
+    struct sNode* top;
+
+    top = *top_ref;
+    res = top->t;
+    *top_ref = top->next;
+    free(top);
+    return res;
+
+}
+
+bool isEmpty(struct sNode* top) {
+    return (top==NULL) ? 1 : 0;
+}
+
+// WIP
+void iterativeInOrderTraversal(BTreeNode* root, int depth) {
+    int count = 0;
+    struct BTreeNode* current = root;
+    struct sNode* stack = NULL;
+    bool done = 0;
+
+    while(!done && count < depth) {
+        if(current != NULL) {
+            push(&stack, current);
+            current = current->link[0];
+        }
+    }
+    
+
 }
 
 __global__ void bruteForceTree(BTreeNode* root) {
